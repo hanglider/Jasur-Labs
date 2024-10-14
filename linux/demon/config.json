@@ -1,6 +1,6 @@
 {
-    "source_directory": "C:\\IT\\Jasur-Labs\\linux\\demon\\source",
-    "backup_directory": "C:\\IT\\Jasur-Labs\\linux\\demon\\backup",
+    "source_directory": "/home/user/source",
+    "backup_directory": "/home/user/backup",
     "backup_interval": 3600,  
-    "log_file": "C:\\IT\\Jasur-Labs\\linux\\demon\\backup_daemon.log"
+    "log_file": "/home/user/backup_daemon.log"
 }
