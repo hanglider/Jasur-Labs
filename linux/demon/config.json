@@ -1,6 +1,5 @@
-{
-    "source_directory": "/home/user/source",
-    "backup_directory": "/home/user/backup",
-    "backup_interval": 3600,  
-    "log_file": "/home/user/backup_daemon.log"
+"source_directory": "/home/ivan/from",
+    "backup_directory": "/home/ivan/to",
+    "backup_frequency": 5,
+    "log_file": "/home/ivan/new_demon/backup_daemon.log"
 }
