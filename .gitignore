@@ -165,3 +165,4 @@ config.py
 all_vk_data.txt
 anon.session
 counter_words.txt
+suspicious_traffic.log
