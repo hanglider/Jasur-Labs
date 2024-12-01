@@ -2,8 +2,6 @@ import json
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
-
-# Путь к файлу JSON
 BOOKS_DB_PATH = 'C:/IT/Jasur-Labs/fp/books_system/books.json'
 
 
@@ -58,21 +56,6 @@ def update_table(recommendations):
         table.insert('', 'end', values=(book['title'], ", ".join(book['author']), book['genre'], book['first_publish_year'], book['score']))
 
 
-def generate_recommendations():
-    global current_recommendations
-
-    selected_genres = [genre_listbox.get(idx) for idx in genre_listbox.curselection()]
-    preferences = {
-        'min_year': int(year_entry.get()) if year_entry.get().isdigit() else 0,
-        'min_score': int(score_entry.get()) if score_entry.get().isdigit() else 0,
-        'genres': selected_genres,
-        'authors': [author.strip() for author in author_combobox.get().split(',')],
-        'keywords': [keyword.strip() for keyword in keywords_entry.get().split(',')]
-    }
-    current_recommendations = recommend_books(preferences, books)
-    update_table(current_recommendations)
-
-
 def save_recommendations():
     file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
     if not file_path:
@@ -88,43 +71,52 @@ def save_recommendations():
         messagebox.showerror("Ошибка", f"Не удалось сохранить файл: {e}")
 
 
+def add_to_favorites(book):
+    favorites_table.insert('', 'end', values=(book['title'], ", ".join(book['author']), book['genre'], book['first_publish_year'], book['score']))
+
+
 books = load_books(BOOKS_DB_PATH)
 all_genres, all_authors = extract_unique_fields(books)
 current_recommendations = []
-
 
 root = tk.Tk()
 root.title("Рекомендательная система для книг")
 root.geometry("2560x1440")
 
+frame_left = tk.Frame(root)
+frame_left.pack(side=tk.LEFT, padx=10, pady=10)
 
-tk.Label(root, text="Выберите авторов (через запятую):").pack(pady=5)
-author_combobox = ttk.Combobox(root, values=all_authors, width=50)
+tk.Label(frame_left, text="Выберите авторов (через запятую):").pack(pady=5)
+author_combobox = ttk.Combobox(frame_left, values=all_authors, width=50)
 author_combobox.pack()
 author_combobox.bind('<KeyRelease>', lambda e: update_autocomplete(e, author_combobox, all_authors))
 
-tk.Label(root, text="Ключевые слова (через запятую):").pack(pady=5)
-keywords_entry = tk.Entry(root, width=50)
+tk.Label(frame_left, text="Ключевые слова (через запятую):").pack(pady=5)
+keywords_entry = tk.Entry(frame_left, width=50)
 keywords_entry.pack()
 
-tk.Label(root, text="Укажите минимальный год публикации:").pack(pady=5)
-year_entry = tk.Entry(root, width=20)
+tk.Label(frame_left, text="Укажите минимальный год публикации:").pack(pady=5)
+year_entry = tk.Entry(frame_left, width=20)
 year_entry.pack()
 
-tk.Label(root, text="Укажите минимальный рейтинг:").pack(pady=5)
-score_entry = tk.Entry(root, width=20)
+tk.Label(frame_left, text="Укажите минимальный рейтинг:").pack(pady=5)
+score_entry = tk.Entry(frame_left, width=20)
 score_entry.pack()
 
-tk.Label(root, text="Выберите жанры:").pack(pady=5)
-genre_listbox = tk.Listbox(root, selectmode=tk.MULTIPLE, height=10)
+tk.Label(frame_left, text="Выберите жанры:").pack(pady=5)
+genre_listbox = tk.Listbox(frame_left, selectmode=tk.MULTIPLE, height=10)
 for genre in all_genres:
     genre_listbox.insert(tk.END, genre)
 genre_listbox.pack()
 
-tk.Button(root, text="Сгенерировать рекомендации", command=generate_recommendations).pack(pady=10)
-tk.Button(root, text="Сохранить рекомендации", command=save_recommendations).pack(pady=5)
+button_frame = tk.Frame(frame_left)
+button_frame.pack(pady=10)
 
-table = ttk.Treeview(root, columns=("Название", "Авторы", "Жанр", "Год", "Рейтинг"), show='headings', height=20)
+tk.Button(button_frame, text="Сгенерировать рекомендации", command=lambda: generate_recommendations()).pack(side=tk.LEFT, padx=5)
+tk.Button(button_frame, text="Сохранить рекомендации", command=save_recommendations).pack(side=tk.LEFT, padx=5)
+tk.Button(button_frame, text="Добавить в избранное", command=lambda: add_to_favorites_from_table()).pack(side=tk.LEFT, padx=5)
+
+table = ttk.Treeview(frame_left, columns=("Название", "Авторы", "Жанр", "Год", "Рейтинг"), show='headings', height=20)
 table.heading("Название", text="Название")
 table.heading("Авторы", text="Авторы")
 table.heading("Жанр", text="Жанр")
@@ -136,5 +128,52 @@ table.column("Жанр", width=100)
 table.column("Год", width=70)
 table.column("Рейтинг", width=80)
 table.pack(pady=10, fill=tk.BOTH, expand=True)
+
+frame_right = tk.Frame(root)
+frame_right.pack(side=tk.LEFT, padx=10, pady=10)
+
+favorites_label = tk.Label(frame_right, text="Избранное")
+favorites_label.pack(pady=10)
+
+favorites_table = ttk.Treeview(frame_right, columns=("Название", "Авторы", "Жанр", "Год", "Рейтинг"), show='headings', height=20)
+favorites_table.heading("Название", text="Название")
+favorites_table.heading("Авторы", text="Авторы")
+favorites_table.heading("Жанр", text="Жанр")
+favorites_table.heading("Год", text="Год")
+favorites_table.heading("Рейтинг", text="Рейтинг")
+favorites_table.column("Название", width=300)
+favorites_table.column("Авторы", width=200)
+favorites_table.column("Жанр", width=100)
+favorites_table.column("Год", width=70)
+favorites_table.column("Рейтинг", width=80)
+favorites_table.pack(pady=10, fill=tk.BOTH, expand=True)
+
+def generate_recommendations():
+    global current_recommendations
+
+    selected_genres = [genre_listbox.get(idx) for idx in genre_listbox.curselection()]
+    preferences = {
+        'min_year': int(year_entry.get()) if year_entry.get().isdigit() else 0,
+        'min_score': int(score_entry.get()) if score_entry.get().isdigit() else 0,
+        'genres': selected_genres,
+        'authors': [author.strip() for author in author_combobox.get().split(',')],
+        'keywords': [keyword.strip() for keyword in keywords_entry.get().split(',')]
+    }
+    current_recommendations = recommend_books(preferences, books)
+    update_table(current_recommendations)
+
+
+def add_to_favorites_from_table():
+    for row_id in table.selection():
+        row = table.item(row_id)['values']
+        book = {
+            'title': row[0],
+            'author': row[1].split(", "),
+            'genre': row[2],
+            'first_publish_year': row[3],
+            'score': row[4]
+        }
+        add_to_favorites(book)
+
 
 root.mainloop()
