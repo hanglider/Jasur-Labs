@@ -1,7 +1,7 @@
 import multiprocessing as mp
 import re
 import asyncio
-from tkinter import Tk, Listbox, Button, MULTIPLE, END, Scrollbar, Label, messagebox, Text, Toplevel
+from tkinter import Tk, Listbox, Button, MULTIPLE, END, Scrollbar, Label, messagebox, Text, Toplevel, Entry
 from nltk.corpus import stopwords
 from collections import Counter
 import vk_api
@@ -10,8 +10,7 @@ import concurrent.futures
 from pprint import pprint
 from config import API_ID, API_HASH, access_token
 
-group_aliases = ['hclokomotiv_official', 'spbu_love', 'akula.media']  # Список групп для ВКонтакте
-telegram_channels = ['khl_official_telegram', 'live_piter', 'got_ball']  # Список Telegram каналов
+additional_stopwords = {'на', 'не', 'в', 'и', 'c'}  # Дополнительные стоп-слова
 
 # Получение числового group_id по alias (короткому имени) для ВК
 def get_group_id(alias, token):
@@ -39,9 +38,9 @@ def get_vk_posts(group_id, token, count=100):
         return None
 
 # Сбор данных из ВКонтакте, добавление в общий файл
-def collect_vk_data(source_name, group_id, token):
+def collect_vk_data(source_name, group_id, token, count):
     """Собирает текст постов ВКонтакте для дальнейшего анализа"""
-    data = get_vk_posts(group_id, token)
+    data = get_vk_posts(group_id, token, count)
     if data:
         all_text = ' '.join(data)  # Объединяем все посты в один текст
         print(f"Данные собраны с {source_name}")
@@ -52,7 +51,7 @@ def collect_vk_data(source_name, group_id, token):
 
 # Предобработка текста
 def preprocess_text(data):
-    stop_words = set(stopwords.words('russian'))
+    stop_words = set(stopwords.words('russian')).union(additional_stopwords)
     cleaned_data = re.sub(r'\W+', ' ', data.lower())  # Убираем спецсимволы
     words = [word for word in cleaned_data.split() if word not in stop_words and len(word) > 2]
     return words
@@ -72,7 +71,7 @@ def analyze_data(source_name, all_text, output_file):
     print(f"Топ-10 слов для {source_name}: {common_words}")
 
 # Парсинг ВК
-def vk_parser(selected_groups):
+def vk_parser(selected_groups, count):
     group_ids = {alias: get_group_id(alias=alias, token=access_token) for alias in selected_groups}
     group_ids = {name: id for name, id in group_ids.items() if id is not None}
     
@@ -82,11 +81,11 @@ def vk_parser(selected_groups):
         f.write("")
 
     pool = mp.Pool(len(group_ids))
-    vk_data_tasks = [(f"VK_{name}", group_id, access_token) for name, group_id in group_ids.items()]
+    vk_data_tasks = [(f"VK_{name}", group_id, access_token, count) for name, group_id in group_ids.items()]
     
     # Собираем данные с групп ВК и анализируем их
-    for source_name, group_id, token in vk_data_tasks:
-        all_text = collect_vk_data(source_name, group_id, token)
+    for source_name, group_id, token, count in vk_data_tasks:
+        all_text = collect_vk_data(source_name, group_id, token, count)
         if all_text:
             analyze_data(source_name, all_text, output_file)
 
@@ -97,11 +96,11 @@ def save_results_to_file(counter: Counter, file_name: str):
             f.write(f'{word}: {freq}\n')
 
 # Парсинг Telegram
-async def telegram_parser(selected_channels):
+async def telegram_parser(selected_channels, count):
     all_messages_counter = Counter()
     all_hashtags_counter = Counter()
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {executor.submit(lambda name=name: request_messages(name)): name for name in selected_channels}
+        futures = {executor.submit(lambda name=name: request_messages(name, count)): name for name in selected_channels}
         for future in concurrent.futures.as_completed(futures):
             try:
                 messages_counter, hashtags_counter = await future.result()
@@ -114,10 +113,10 @@ async def telegram_parser(selected_channels):
     save_results_to_file(all_messages_counter, 'counter_words.txt')
 
 # Асинхронный запрос сообщений в Telegram
-async def request_messages(channel_name):
+async def request_messages(channel_name, count):
     async with TelegramClient('anon', API_ID, API_HASH) as client:
         channel = await client.get_entity(channel_name)
-        messages = await client.get_messages(channel, limit=100)
+        messages = await client.get_messages(channel, limit=count)
         counter = Counter()
         for message in messages:
             if message.text:
@@ -126,12 +125,15 @@ async def request_messages(channel_name):
         return counter, counter_hashtags
 
 # Функция для обработки кнопки парсинга
-def parse_data(selected_vk_groups, selected_telegram_channels):
+def parse_data(vk_input, telegram_input, count):
+    selected_vk_groups = vk_input.split()  # Преобразуем введённые группы в список
+    selected_telegram_channels = telegram_input.split()  # Преобразуем введённые каналы в список
+    
     if selected_vk_groups:  # Проверка, есть ли выбранные группы ВК
-        vk_parser(selected_vk_groups)
+        vk_parser(selected_vk_groups, count)
         
     if selected_telegram_channels:  # Проверка, есть ли выбранные каналы Telegram
-        asyncio.run(telegram_parser(selected_telegram_channels))
+        asyncio.run(telegram_parser(selected_telegram_channels, count))
 
     messagebox.showinfo("Парсинг завершен", "Данные успешно собраны!")
 
@@ -158,24 +160,27 @@ def create_gui():
     root = Tk()
     root.title("Парсинг VK и Telegram")
 
-    # Метка и список для выбора групп VK
-    Label(root, text="Выберите группы ВКонтакте для парсинга:").pack()
-    vk_listbox = Listbox(root, selectmode=MULTIPLE, width=50, height=10)
-    for alias in group_aliases:
-        vk_listbox.insert(END, alias)
-    vk_listbox.pack()
+    # Метка и поле для ввода групп VK
+    Label(root, text="Введите группы ВКонтакте для парсинга (через пробел):").pack()
+    vk_entry = Entry(root, width=50)
+    vk_entry.pack()
 
-    # Метка и список для выбора каналов Telegram
-    Label(root, text="Выберите каналы Telegram для парсинга:").pack()
-    telegram_listbox = Listbox(root, selectmode=MULTIPLE, width=50, height=10)
-    for channel in telegram_channels:
-        telegram_listbox.insert(END, channel)
-    telegram_listbox.pack()
+    # Метка и поле для ввода каналов Telegram
+    Label(root, text="Введите каналы Telegram для парсинга (через пробел):").pack()
+    telegram_entry = Entry(root, width=50)
+    telegram_entry.pack()
+
+    # Метка и поле для ввода количества сообщений/постов для скачивания
+    Label(root, text="Введите количество сообщений/постов для скачивания:").pack()
+    count_entry = Entry(root)
+    count_entry.insert(END, '100')  # Значение по умолчанию
+    count_entry.pack()
 
     # Кнопка для запуска парсинга
     parse_button = Button(root, text="Запустить парсинг", command=lambda: parse_data(
-        [vk_listbox.get(i) for i in vk_listbox.curselection()],
-        [telegram_listbox.get(i) for i in telegram_listbox.curselection()]
+        vk_entry.get(),  # Получаем введённые данные для VK
+        telegram_entry.get(),  # Получаем введённые данные для Telegram
+        int(count_entry.get())
     ))
     parse_button.pack()
 
