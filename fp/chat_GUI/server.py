@@ -1,93 +1,109 @@
-import asyncio
+import socket
+import threading
+import time
+import os
 
-SERVER_HOST = "0.0.0.0"
-SERVER_PORT = 5002
-separator_token = "<SEP>"
+class ChatServer:
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.clients = {}  # {username: (socket, room)}
+        self.rooms = {}    # {room: [username1, username2]}
 
-rooms = {}
+    def start(self):
+        self.server_socket.bind((self.host, self.port))
+        self.server_socket.listen(5)
+        print(f"Server started on {self.host}:{self.port}")
+        threading.Thread(target=self.broadcast_rooms, daemon=True).start()
 
-async def handle_client(reader, writer):
-    addr = writer.get_extra_info('peername')
-    print(f"[+] {addr} connected.")
-    current_room = None
-
-    try:
         while True:
-            data = await reader.read(1024)
-            if not data:
-                break
-            message = data.decode().strip()
+            client_socket, addr = self.server_socket.accept()
+            threading.Thread(target=self.handle_client, args=(client_socket, addr), daemon=True).start()
 
-            # Обработка команды /join для входа в комнату
-            if message.startswith("/join"):
-                room_name = message.split(" ", 1)[-1].strip()
-                if current_room:
-                    rooms[current_room].remove(writer)
-                    if not rooms[current_room]:
-                        del rooms[current_room]
-                current_room = room_name
-                if current_room not in rooms:
-                    rooms[current_room] = set()
-                rooms[current_room].add(writer)
-                writer.write(f"[INFO] Joined room: {current_room}\n".encode())
-                await writer.drain()
-                continue
-
-            # Обработка команды /quit для завершения работы клиента
-            if message.lower() == "/quit":
-                writer.write("[INFO] Disconnected from the server.\n".encode())
-                await writer.drain()
-                break
-
-            # Обработка команды exit для выхода из комнаты
-            if message.lower() == "/exit":
-                if current_room:
-                    rooms[current_room].remove(writer)
-                    if not rooms[current_room]:
-                        del rooms[current_room]
-                    current_room = None
-                writer.write("[INFO] Left the room. Use /join <room_name> to join a new room.\n".encode())
-                await writer.drain()
-                continue
-
-            # Если клиент не в комнате
-            if not current_room:
-                writer.write("[ERROR] Join a room first using /join <room_name>.\n".encode())
-                await writer.drain()
-                continue
-
-            # Рассылка сообщения всем в комнате
-            formatted_message = f"[{addr}] {message.replace(separator_token, ': ')}"
-            print(f"Room {current_room}: {formatted_message.strip()}")
-            for client in rooms[current_room]:
+    def broadcast_rooms(self):
+        while True:
+            time.sleep(3)
+            rooms_list = "/rooms " + ",".join(self.rooms.keys())
+            for username, (client_socket, _) in self.clients.items():
                 try:
-                    client.write(formatted_message.encode())
-                    await client.drain()
-                except ConnectionResetError:
-                    # Если клиент разорвал соединение, игнорируем ошибку
-                    continue
-    except ConnectionResetError:
-        print(f"[!] Connection reset by {addr}")
-    except Exception as e:
-        print(f"[!] Error with {addr}: {e}")
-    finally:
-        if current_room and writer in rooms.get(current_room, set()):
-            rooms[current_room].remove(writer)
-            if not rooms[current_room]:
-                del rooms[current_room]
-        print(f"[-] {addr} disconnected.")
-        writer.close()
-        await writer.wait_closed()
+                    client_socket.send(rooms_list.encode())
+                except:
+                    self.disconnect_client(username)
 
-async def main():
-    server = await asyncio.start_server(handle_client, SERVER_HOST, SERVER_PORT)
-    addr = server.sockets[0].getsockname()
-    print(f"[*] Listening as {addr[0]}:{addr[1]}")
+    def handle_client(self, client_socket, addr):
+        username = None
+        room = None
 
-    async with server:
-        await server.serve_forever()
+        try:
+            while True:
+                data = client_socket.recv(4096).decode().strip()
+                if not data:
+                    break
 
-try:
-    asyncio.run(main())
-except KeyboardInterrupt:
-    print("\n[!] Server stopped.")
+                if data.startswith("/join"):
+                    room = data.split()[1]
+                    username = f"{addr[0]}:{addr[1]}"
+                    self.clients[username] = (client_socket, room)
+
+                    if room not in self.rooms:
+                        self.rooms[room] = []
+                    self.rooms[room].append(username)
+
+                    self.send_to_room(room, f"[INFO] {username} has joined the room {room}")
+
+                elif data.startswith("/image"):
+                    image_data = client_socket.recv(1024 * 1024)  # Получаем фотографию
+                    self.save_image(username, image_data, room)
+
+                elif data.startswith("/quit"):
+                    break
+
+                else:
+                    self.send_to_room(room, f"{username}: {data}")
+
+        except:
+            pass
+        finally:
+            self.disconnect_client(username)
+
+    def send_to_room(self, room, message):
+        if room in self.rooms:
+            for user in self.rooms[room]:
+                if user in self.clients:
+                    client_socket, _ = self.clients[user]
+                    try:
+                        client_socket.send(message.encode())
+                    except:
+                        self.disconnect_client(user)
+
+    def save_image(self, username, image_data, room):
+        save_path = os.path.join(r"C:\IT\Jasur-Labs\fp\chat_GUI\downloads", f"{username}.jpg")
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        try:
+            with open(save_path, "wb") as f:
+                f.write(image_data)
+            self.send_to_room(room, f"[INFO] Image saved at {save_path}")
+        except:
+            print(f"Failed to save image for {username}")
+
+    def disconnect_client(self, username):
+        if username in self.clients:
+            client_socket, room = self.clients[username]
+            try:
+                client_socket.close()
+            except:
+                pass
+            del self.clients[username]
+
+            if room in self.rooms:
+                self.rooms[room].remove(username)
+                if not self.rooms[room]:
+                    del self.rooms[room]
+
+            self.send_to_room(room, f"[INFO] {username} has left the room")
+
+
+if __name__ == "__main__":
+    server = ChatServer("127.0.0.1", 5002)
+    server.start()
