@@ -116,6 +116,25 @@ class ChatApp:
         self.photo_button = tk.Button(self.bottom_frame, text="Photo", command=self.send_photo)
         self.photo_button.grid(row=0, column=2, padx=5)
 
+        # Запрашиваем список комнат при запуске программы
+        self.fetch_rooms_on_start()
+
+    def fetch_rooms_on_start(self):
+        """Запрашиваем список комнат сразу при старте программы."""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as temp_socket:
+                temp_socket.connect(("127.0.0.1", 5002))  # Подключаемся к серверу
+                temp_socket.send("/list".encode())  # Отправляем запрос на список комнат
+                response = temp_socket.recv(4096).decode().strip()
+
+                if response.startswith("/rooms"):
+                    rooms = response.replace("/rooms ", "").split(",")
+                    self.add_message(",".join(rooms), rooms_update=True)  # Обновляем список комнат
+                else:
+                    self.add_message("No rooms available.", rooms_update=True)
+        except ConnectionRefusedError:
+            self.add_message("[ERROR] Cannot connect to the server. Rooms list is unavailable.", rooms_update=True)
+
     def connect(self):
         username = self.username_entry.get().strip()
         room = self.room_entry.get().strip()
@@ -151,8 +170,11 @@ class ChatApp:
     def add_message(self, message, rooms_update=False):
         if rooms_update:
             self.rooms_listbox.delete(0, tk.END)
-            for room in message.split(","):
-                self.rooms_listbox.insert(tk.END, room)
+            if message:  # Если есть комнаты, отображаем их
+                for room in message.split(","):
+                    self.rooms_listbox.insert(tk.END, room.strip())
+            else:
+                self.rooms_listbox.insert(tk.END, "No available rooms.")
         else:
             self.messages.configure(state="normal")
             self.messages.insert(tk.END, message + "\n")
