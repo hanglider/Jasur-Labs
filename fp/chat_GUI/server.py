@@ -53,19 +53,12 @@ class ChatServer:
                     self.send_to_room(room, f"[INFO] {username} has joined the room {room}")
 
                 elif data.startswith("/image"):
-                    # Парсим команду, чтобы получить размер изображения
-                    _, file_size = data.split()
-                    file_size = int(file_size)
+                    # Извлекаем имя файла из команды
+                    _, filename = data.split(maxsplit=1)
 
-                    # Получаем данные файла
-                    image_data = b""
-                    while len(image_data) < file_size:
-                        packet = client_socket.recv(4096)
-                        if not packet:
-                            break
-                        image_data += packet
-
-                    self.save_image(username, image_data, room)
+                    # Получаем данные изображения
+                    image_data = client_socket.recv(1024 * 1024)  # 1 MB buffer
+                    self.save_image(username, filename, image_data, room)
 
                 elif data.startswith("/quit"):
                     break
@@ -73,10 +66,11 @@ class ChatServer:
                 else:
                     self.send_to_room(room, f"{username}: {data}")
 
-        except:
-            pass
+        except Exception as e:
+            print(f"Error with client {addr}: {e}")
         finally:
             self.disconnect_client(username)
+
 
     def send_to_room(self, room, message):
         if room in self.rooms:
@@ -88,16 +82,20 @@ class ChatServer:
                     except:
                         self.disconnect_client(user)
 
-    def save_image(self, username, image_data, room):
-        save_path = os.path.join(r"C:\IT\Jasur-Labs\fp\chat_GUI\downloads", f"{username}.jpg")
+    def save_image(self, username, filename, image_data, room):
+        # Сохраняем файл с оригинальным именем
+        save_path = os.path.join(r"C:\IT\Jasur-Labs\fp\chat_GUI\downloads", filename)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
         try:
+            # Сохраняем данные изображения
             with open(save_path, "wb") as f:
                 f.write(image_data)
-            self.send_to_room(room, f"[INFO] Image saved at {save_path}")
+
+            self.send_to_room(room, f"[INFO] Image saved as {filename}")
         except Exception as e:
             print(f"Failed to save image for {username}: {e}")
-            self.send_to_room(room, "[ERROR] Failed to save image.")
+
 
 
     def disconnect_client(self, username):
