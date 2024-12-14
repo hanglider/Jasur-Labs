@@ -53,7 +53,18 @@ class ChatServer:
                     self.send_to_room(room, f"[INFO] {username} has joined the room {room}")
 
                 elif data.startswith("/image"):
-                    image_data = client_socket.recv(1024 * 1024)  # Получаем фотографию
+                    # Парсим команду, чтобы получить размер изображения
+                    _, file_size = data.split()
+                    file_size = int(file_size)
+
+                    # Получаем данные файла
+                    image_data = b""
+                    while len(image_data) < file_size:
+                        packet = client_socket.recv(4096)
+                        if not packet:
+                            break
+                        image_data += packet
+
                     self.save_image(username, image_data, room)
 
                 elif data.startswith("/quit"):
@@ -84,8 +95,10 @@ class ChatServer:
             with open(save_path, "wb") as f:
                 f.write(image_data)
             self.send_to_room(room, f"[INFO] Image saved at {save_path}")
-        except:
-            print(f"Failed to save image for {username}")
+        except Exception as e:
+            print(f"Failed to save image for {username}: {e}")
+            self.send_to_room(room, "[ERROR] Failed to save image.")
+
 
     def disconnect_client(self, username):
         if username in self.clients:
