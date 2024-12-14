@@ -33,11 +33,19 @@ class ChatClient:
     def send_image(self, image_path):
         if self.connected:
             try:
+                # Извлекаем имя файла
+                filename = os.path.basename(image_path)
                 with open(image_path, "rb") as f:
                     image_data = f.read()
-                self.socket.send(b"/image " + image_data + b"\n")
-            except:
+                
+                # Отправляем команду с именем файла, а затем файл
+                self.socket.send(f"/image {filename}\n".encode())
+                self.socket.send(image_data)
+            except Exception as e:
+                print(f"Error sending image: {e}")
                 self.connected = False
+
+
 
     def receive_messages(self, callback):
         def listen():
