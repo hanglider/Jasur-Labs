@@ -59,6 +59,11 @@ class ChatServer:
                     # Получаем данные изображения
                     image_data = client_socket.recv(1024 * 1024)  # 1 MB buffer
                     self.save_image(username, filename, image_data, room)
+                
+                elif data.startswith("/list"):
+                    # Возвращаем список всех доступных комнат
+                    rooms_list = "/rooms " + ",".join(self.rooms.keys())
+                    client_socket.send(rooms_list.encode())
 
                 elif data.startswith("/quit"):
                     break
