@@ -4,7 +4,6 @@ from tkinter import ttk, messagebox, filedialog
 
 BOOKS_DB_PATH = 'C:/IT/Jasur-Labs/fp/books_system/books.json'
 
-
 def load_books(filename):
     try:
         with open(filename, 'r', encoding='utf-8') as file:
@@ -12,7 +11,6 @@ def load_books(filename):
     except Exception as e:
         messagebox.showerror("Ошибка", f"Не удалось загрузить базу данных: {e}")
         return []
-
 
 def extract_unique_fields(books):
     genres = set()
@@ -23,12 +21,10 @@ def extract_unique_fields(books):
             authors.add(author.strip())
     return sorted(genres), sorted(authors)
 
-
 def update_autocomplete(event, combobox, values):
     entry = event.widget.get()
     combobox['values'] = [value for value in values if entry.lower() in value.lower()]
     combobox.event_generate('<Down>')
-
 
 def recommend_books(preferences, books):
     def calculate_score(book):
@@ -48,13 +44,19 @@ def recommend_books(preferences, books):
     ]
     return sorted(recommendations, key=lambda x: x['score'], reverse=True)
 
-
-def update_table(recommendations):
+def update_table(recommendations, sort_criteria):
     for row in table.get_children():
         table.delete(row)
+
+    if sort_criteria == "Название":
+        recommendations = sorted(recommendations, key=lambda x: x['title'])
+    elif sort_criteria == "Год":
+        recommendations = sorted(recommendations, key=lambda x: x['first_publish_year'])
+    elif sort_criteria == "Рейтинг":
+        recommendations = sorted(recommendations, key=lambda x: x['score'], reverse=True)
+
     for book in recommendations:
         table.insert('', 'end', values=(book['title'], ", ".join(book['author']), book['genre'], book['first_publish_year'], book['score']))
-
 
 def save_recommendations():
     file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
@@ -70,10 +72,8 @@ def save_recommendations():
     except Exception as e:
         messagebox.showerror("Ошибка", f"Не удалось сохранить файл: {e}")
 
-
 def add_to_favorites(book):
     favorites_table.insert('', 'end', values=(book['title'], ", ".join(book['author']), book['genre'], book['first_publish_year'], book['score']))
-
 
 books = load_books(BOOKS_DB_PATH)
 all_genres, all_authors = extract_unique_fields(books)
@@ -108,6 +108,11 @@ genre_listbox = tk.Listbox(frame_left, selectmode=tk.MULTIPLE, height=10)
 for genre in all_genres:
     genre_listbox.insert(tk.END, genre)
 genre_listbox.pack()
+
+tk.Label(frame_left, text="Сортировать по:").pack(pady=5)
+sort_combobox = ttk.Combobox(frame_left, values=["Название", "Год", "Рейтинг"], width=20)
+sort_combobox.pack()
+sort_combobox.current(0)
 
 button_frame = tk.Frame(frame_left)
 button_frame.pack(pady=10)
@@ -160,8 +165,7 @@ def generate_recommendations():
         'keywords': [keyword.strip() for keyword in keywords_entry.get().split(',')]
     }
     current_recommendations = recommend_books(preferences, books)
-    update_table(current_recommendations)
-
+    update_table(current_recommendations, sort_combobox.get())
 
 def add_to_favorites_from_table():
     for row_id in table.selection():
@@ -174,6 +178,5 @@ def add_to_favorites_from_table():
             'score': row[4]
         }
         add_to_favorites(book)
-
 
 root.mainloop()
