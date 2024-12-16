@@ -48,11 +48,17 @@ def update_table(recommendations, sort_criteria):
     for row in table.get_children():
         table.delete(row)
 
-    if sort_criteria == "Название":
+    if sort_criteria == "Название (по возрастанию)":
         recommendations = sorted(recommendations, key=lambda x: x['title'])
-    elif sort_criteria == "Год":
+    elif sort_criteria == "Название (по убыванию)":
+        recommendations = sorted(recommendations, key=lambda x: x['title'], reverse=True)
+    elif sort_criteria == "Год (по возрастанию)":
         recommendations = sorted(recommendations, key=lambda x: x['first_publish_year'])
-    elif sort_criteria == "Рейтинг":
+    elif sort_criteria == "Год (по убыванию)":
+        recommendations = sorted(recommendations, key=lambda x: x['first_publish_year'], reverse=True)
+    elif sort_criteria == "Рейтинг (по возрастанию)":
+        recommendations = sorted(recommendations, key=lambda x: x['score'])
+    elif sort_criteria == "Рейтинг (по убыванию)":
         recommendations = sorted(recommendations, key=lambda x: x['score'], reverse=True)
 
     for book in recommendations:
@@ -110,7 +116,11 @@ for genre in all_genres:
 genre_listbox.pack()
 
 tk.Label(frame_left, text="Сортировать по:").pack(pady=5)
-sort_combobox = ttk.Combobox(frame_left, values=["Название", "Год", "Рейтинг"], width=20)
+sort_combobox = ttk.Combobox(frame_left, values=[
+    "Название (по возрастанию)", "Название (по убыванию)",
+    "Год (по возрастанию)", "Год (по убыванию)",
+    "Рейтинг (по возрастанию)", "Рейтинг (по убыванию)"
+], width=30)
 sort_combobox.pack()
 sort_combobox.current(0)
 
