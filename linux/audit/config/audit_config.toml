@@ -1,0 +1,4 @@
+[settings]
+log_file = "logs/event_log.txt"
+email_alert = "admin@example.com"
+report_output = "logs/summary_report.png"
