@@ -1,8 +1,8 @@
-from src.event_monitor import EventMonitor
-from src.logger import Logger
-from src.event_filter import EventFilter
-from src.notification import Notification
-from src.report_generator import ReportGenerator
+from event_monitor import EventMonitor
+from logger import Logger
+from event_filter import EventFilter
+from notification import Notification
+from report_generator import ReportGenerator
 
 def main():
     # Инициализация модулей
