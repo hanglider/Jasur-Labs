@@ -92,12 +92,12 @@ root.geometry("2560x1440")
 frame_left = tk.Frame(root)
 frame_left.pack(side=tk.LEFT, padx=10, pady=10)
 
-tk.Label(frame_left, text="Выберите авторов (через запятую):").pack(pady=5)
+tk.Label(frame_left, text="Выберите автора:").pack(pady=5)
 author_combobox = ttk.Combobox(frame_left, values=all_authors, width=50)
 author_combobox.pack()
 author_combobox.bind('<KeyRelease>', lambda e: update_autocomplete(e, author_combobox, all_authors))
 
-tk.Label(frame_left, text="Ключевые слова (через запятую):").pack(pady=5)
+tk.Label(frame_left, text="Ключевые слова:").pack(pady=5)
 keywords_entry = tk.Entry(frame_left, width=50)
 keywords_entry.pack()
 
